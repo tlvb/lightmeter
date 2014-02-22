@@ -20,6 +20,12 @@ c0l equ 0x0204
 c0h equ 0x0205
 c1l equ 0x0206
 c1h equ 0x0207
+NUMERATOR equ 0x0208
+DIVISOR equ 0x020a
+QUOTIENT equ 0x020c
+QUOTIENTL equ 0x020c
+QUOTIENTH equ 0x020d
+
 
 org 0xfff2
 interrupt_table:																; {{{
@@ -32,7 +38,6 @@ interrupt_table:																; {{{
 						dw			MAIN_ENTRY_POINT
 						dw			MAIN_ENTRY_POINT							; set reset vector to point to the MAIN_ENTRY_POINT label
 ; }}}
-
 org 0xf800
 MAIN_ENTRY_POINT:																; {{{
 ; --------------------------------------------------------------------------------------------------------------------------------
@@ -157,6 +162,20 @@ txw_7:					tst			&SUS_TXS
 						mov.b		&c1h, &SUS_TXB
 						call		#sus_transmit
 
+						mov.w		&c1l, &NUMERATOR
+						mov.w		&c0l, &DIVISOR
+						call		#divide
+
+txw_8:					tst			&SUS_TXS
+						jnz			txw_8										; quotient low
+						mov.b		&QUOTIENTL, &SUS_TXB
+						call		#sus_transmit
+
+txw_9:					tst			&SUS_TXS
+						jnz			txw_9										; quotient high
+						mov.b		&QUOTIENTH, &SUS_TXB
+						call		#sus_transmit
+
 						call		#red_led_off
 						mov.w		#0xffff, r7
 bigdelay:				dec.w		r7
@@ -176,6 +195,43 @@ red_led_on:																		; {{{
 red_led_off:																	; {{{
 ; --------------------------------------------------------------------------------------------------------------------------------
 						bic.b		#0x01, &P1OUT
+						ret
+; }}}
+divide:																			; {{{
+; --------------------------------------------------------------------------------------------------------------------------------
+						push		r4
+						push		r5
+						push		r6
+						push		r7
+						mov.w		&NUMERATOR, r6
+						mov.w		&DIVISOR, r5
+						mov.w		#0x0000, r4
+
+						tst.w		r5
+						jz			divider_ret
+
+						mov.w		#0x0200, r7
+
+dec_until_lo:			tst			r5
+						jz			next_power
+						cmp			r5, r6										; r5 >= r6?
+						jlo			next_power									; nope
+						sub.w		r5, r6										; yes
+						add.w		r7, r4										; increase r4 by current bit value
+						jmp			dec_until_lo
+
+next_power:				clrc
+						rrc.w		r7
+						clrc
+						rrc.w		r5
+						tst			r7
+						jnz			dec_until_lo
+
+divider_ret:			mov.w		r4, &QUOTIENT
+						pop			r7
+						pop			r6
+						pop			r5
+						pop			r4
 						ret
 ; }}}
 configure_i2c_master:															; {{{
