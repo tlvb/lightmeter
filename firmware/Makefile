@@ -3,4 +3,6 @@ lightmeter.hex: lightmeter.asm
 
 .PHONY: install
 install: lightmeter.hex
+	mspdebug rf2500 'erase all'
 	mspdebug rf2500 'prog $<'
+	mspdebug rf2500 'verify $<'
